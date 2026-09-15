@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>KI Use Cases — Neon Lab</title>
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<div class="app-shell">
+		<aside class="sidebar">
+			<div class="logo-wrap">
+				<div class="logo-sub">KI Use Cases</div>
+			</div>
+			<nav class="nav">
+				<a class="nav-link active">Übersicht</a>
+				<a class="nav-link">Use Cases</a>
+				<a class="nav-link">Einstellungen</a>
+			</nav>
+		</aside>
+
+		<main class="content">
+			<header class="content-header">
+				<div>
+					<h1>Use Cases</h1>
+					<p class="subtitle">Sammle, priorisiere und strukturiere deine KI-Ideen.</p>
+				</div>
+				<div class="header-actions">
+					<!-- Dark mode removed: intentionally left blank for strong, fixed color styling -->
+				</div>
+			</header>
+
+			<section class="cards">
+				<section class="card wide">
+					<div class="card-title">Neuen Use Case</div>
+					<form onsubmit="event.preventDefault();speichern()" class="form-row">
+						<input id="titel" type="text" placeholder="Titel" required>
+						<input id="kategorie" type="text" placeholder="Kategorie">
+						<input id="beschreibung" type="text" placeholder="Kurzbeschreibung">
+						<input id="nutzen" type="number" min="1" max="5" placeholder="Nutzen">
+						<input id="aufwand" type="number" min="1" max="5" placeholder="Aufwand">
+						<div class="form-actions">
+							<button type="button" class="btn clear" onclick="['titel','kategorie','beschreibung','nutzen','aufwand'].forEach(id=>document.getElementById(id).value='')">Zurücksetzen</button>
+							<button type="submit" class="btn primary">Speichern</button>
+						</div>
+					</form>
+				</section>
+
+				<section class="card list-card">
+					<div class="card-title">Gespeicherte Use Cases</div>
+					<div id="liste">
+						<div class="empty">Keine Use Cases vorhanden — füge einen neuen Use Case hinzu.</div>
+					</div>
+				</section>
+			</section>
+		</main>
+	</div>
+
+	<script src="app.js"></script>
+</body>
+</html>
