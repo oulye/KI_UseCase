@@ -102,6 +102,33 @@ body::before{
 .form-row input:focus{outline:none;border-color:rgba(255,255,255,0.12);box-shadow:0 0 0 4px rgba(11,99,255,0.08)}
 .form-actions{display:flex;gap:8px;justify-self:end;grid-column:3}
 
+/* Styled selects to match the bold theme */
+.form-row select{
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+  padding:12px 38px 12px 14px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.06);
+  background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  color:var(--text);
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'><path fill='%23FFFFFF' d='M7 8L0 0h14z'/></svg>");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  background-size:14px 8px;
+}
+.form-row select:focus{outline:none;border-color:rgba(11,99,255,0.18);box-shadow:0 0 0 6px rgba(11,99,255,0.06)}
+.form-row select option{background:var(--panel);color:var(--text);font-weight:600}
+
+/* Ensure selects collapse nicely on small screens */
+@media (max-width:980px){
+  .form-row{grid-template-columns:repeat(2,1fr)}
+  .form-row select{padding-right:34px}
+}
+
 .list-card{max-height:520px;overflow:auto}
 .empty{padding:30px;text-align:center;color:var(--muted);border-radius:16px;border:2px dashed rgba(255,255,255,0.04);background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))}
 

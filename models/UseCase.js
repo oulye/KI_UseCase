@@ -5,5 +5,8 @@ module.exports=mongoose.model("UseCase",new mongoose.Schema({
  kategorie:String,
  nutzen:Number,
  aufwand:Number,
- score:Number
+ score:Number,
+ branche:String,
+ problemtyp:String,
+ risiko:{type:String,enum:['Niedrig','Mittel','Hoch'],default:'Mittel'}
 }));

@@ -34,11 +34,35 @@
 				<section class="card wide">
 					<div class="card-title">Neuen Use Case</div>
 					<form onsubmit="event.preventDefault();speichern()" class="form-row">
-						<input id="titel" type="text" placeholder="Titel" required>
-						<input id="kategorie" type="text" placeholder="Kategorie">
-						<input id="beschreibung" type="text" placeholder="Kurzbeschreibung">
-						<input id="nutzen" type="number" min="1" max="5" placeholder="Nutzen">
-						<input id="aufwand" type="number" min="1" max="5" placeholder="Aufwand">
+										<input id="titel" type="text" placeholder="Titel" required>
+										<input id="kategorie" type="text" placeholder="Kategorie">
+										<input id="beschreibung" type="text" placeholder="Kurzbeschreibung">
+										<select id="branche" aria-label="Branche">
+											<option value="">Branche wählen</option>
+											<option>Gesundheitswesen</option>
+											<option>Finanzen</option>
+											<option>Einzelhandel</option>
+											<option>Produktion</option>
+											<option>Bildung</option>
+											<option>Sonstiges</option>
+										</select>
+										<select id="problemtyp" aria-label="Problemtyp">
+											<option value="">Problemtyp wählen</option>
+											<option>Klassifizierung</option>
+											<option>Vorhersage</option>
+											<option>Automatisierung</option>
+											<option>Betrugserkennung</option>
+											<option>Empfehlung</option>
+											<option>Sonstiges</option>
+										</select>
+										<select id="risiko" aria-label="Risiko">
+											<option value="Mittel">Risiko</option>
+											<option>Niedrig</option>
+											<option selected>Mittel</option>
+											<option>Hoch</option>
+										</select>
+										<input id="nutzen" type="number" min="1" max="5" placeholder="Nutzen">
+										<input id="aufwand" type="number" min="1" max="5" placeholder="Aufwand">
 						<div class="form-actions">
 							<button type="button" class="btn clear" onclick="['titel','kategorie','beschreibung','nutzen','aufwand'].forEach(id=>document.getElementById(id).value='')">Zurücksetzen</button>
 							<button type="submit" class="btn primary">Speichern</button>
