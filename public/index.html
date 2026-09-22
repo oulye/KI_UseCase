@@ -34,38 +34,52 @@
 				<section class="card wide">
 					<div class="card-title">Neuen Use Case</div>
 					<form onsubmit="event.preventDefault();speichern()" class="form-row">
-										<input id="titel" type="text" placeholder="Titel" required>
-										<input id="kategorie" type="text" placeholder="Kategorie">
-										<input id="beschreibung" type="text" placeholder="Kurzbeschreibung">
-										<select id="branche" aria-label="Branche">
-											<option value="">Branche wählen</option>
-											<option>Gesundheitswesen</option>
-											<option>Finanzen</option>
-											<option>Einzelhandel</option>
-											<option>Produktion</option>
-											<option>Bildung</option>
-											<option>Sonstiges</option>
-										</select>
-										<select id="problemtyp" aria-label="Problemtyp">
-											<option value="">Problemtyp wählen</option>
-											<option>Klassifizierung</option>
-											<option>Vorhersage</option>
-											<option>Automatisierung</option>
-											<option>Betrugserkennung</option>
-											<option>Empfehlung</option>
-											<option>Sonstiges</option>
-										</select>
-										<select id="risiko" aria-label="Risiko">
-											<option value="Mittel">Risiko</option>
-											<option>Niedrig</option>
-											<option selected>Mittel</option>
-											<option>Hoch</option>
-										</select>
-										<input id="nutzen" type="number" min="1" max="5" placeholder="Nutzen">
-										<input id="aufwand" type="number" min="1" max="5" placeholder="Aufwand">
+						<input id="titel" type="text" placeholder="Titel" required>
+						<input id="beschreibung" type="text" placeholder="Kurzbeschreibung">
+
+						<div class="field-row field-row--selects">
+							<select id="branche" aria-label="Branche">
+								<option value="">Branche wählen</option>
+								<option>Gesundheitswesen</option>
+								<option>Finanzen</option>
+								<option>Einzelhandel</option>
+								<option>Produktion</option>
+								<option>Bildung</option>
+								<option>Sonstiges</option>
+							</select>
+							<select id="problemtyp" aria-label="Problemtyp">
+								<option value="">Problemtyp wählen</option>
+								<option>Klassifizierung</option>
+								<option>Vorhersage</option>
+								<option>Automatisierung</option>
+								<option>Betrugserkennung</option>
+								<option>Empfehlung</option>
+								<option>Sonstiges</option>
+							</select>
+							<select id="risiko" aria-label="Risiko">
+								<option value="Mittel">Risiko</option>
+								<option>Niedrig</option>
+								<option selected>Mittel</option>
+								<option>Hoch</option>
+							</select>
+						</div>
+
+						<div class="field-row field-row--numbers">
+							<label class="range-field">
+								<span class="field-label">Nutzen</span>
+								<input id="nutzen" type="range" min="1" max="10" step="1" value="6">
+								<span class="range-readout" data-for="nutzen">6</span>
+							</label>
+							<label class="range-field">
+								<span class="field-label">Aufwand</span>
+								<input id="aufwand" type="range" min="1" max="10" step="1" value="4">
+								<span class="range-readout" data-for="aufwand">4</span>
+							</label>
+						</div>
+
 						<div class="form-actions">
-							<button type="button" class="btn clear" onclick="['titel','kategorie','beschreibung','nutzen','aufwand'].forEach(id=>document.getElementById(id).value='')">Zurücksetzen</button>
-							<button type="submit" class="btn primary">Speichern</button>
+							<button type="button" class="btn clear" onclick="['titel','beschreibung','branche','problemtyp','risiko'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const n=document.getElementById('nutzen'); const a=document.getElementById('aufwand'); if(n){n.value=6; n.dispatchEvent(new Event('input'));} if(a){a.value=4; a.dispatchEvent(new Event('input'));}; const r=document.getElementById('risiko'); if(r){r.value='Mittel';}">Zurücksetzen</button>
+							<button id="save-button" type="submit" class="btn primary">Speichern</button>
 						</div>
 					</form>
 				</section>
