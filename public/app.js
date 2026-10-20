@@ -19,6 +19,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (output) output.textContent = input.value;
   };
 
+  const getRiskWeight = (risk) => {
+    switch ((risk || '').toLowerCase()) {
+      case 'niedrig':
+        return 3;
+      case 'mittel':
+        return 2;
+      case 'hoch':
+        return 1;
+      default:
+        return 2;
+    }
+  };
+
   const resetForm = () => {
     editingId = null;
     if (saveButton) saveButton.textContent = 'Speichern';
@@ -64,12 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function speichern() {
+    const riskWeight = getRiskWeight(risiko ? risiko.value : 'Mittel');
     const useCase = {
       titel: titel.value.trim(),
       beschreibung: beschreibung.value.trim(),
       nutzen: Number(nutzen.value) || 0,
       aufwand: Number(aufwand.value) || 0,
-      score: (Number(nutzen.value) || 0) * 2 - (Number(aufwand.value) || 0),
+      score: ((Number(nutzen.value) || 0) * 2 - (Number(aufwand.value) || 0)) * riskWeight,
       branche: branche ? branche.value : '',
       problemtyp: problemtyp ? problemtyp.value : '',
       risiko: risiko ? risiko.value : 'Mittel'
