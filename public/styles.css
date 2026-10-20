@@ -17,7 +17,7 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
 body{min-height:100vh;position:relative;overflow-x:hidden}
-.app-shell{display:flex;gap:26px;max-width:1200px;margin:28px auto;padding:0 18px;width:100%;position:relative;z-index:2}
+.app-shell{display:flex;gap:26px;max-width:1600px;margin:28px auto;padding:0 18px;width:100%;position:relative;z-index:2}
 
 /* Background with bold, irregular geometric shapes */
 body::before{
@@ -51,7 +51,7 @@ body::before{
 
 /* Sidebar like seerow.ch */
 .sidebar{
-  width:220px;padding:20px 14px;background:var(--panel-strong);border-radius:var(--radius);
+  width:90px;padding:20px 14px;background:var(--panel-strong);border-radius:var(--radius);
   border:1px solid var(--card-border);box-shadow:0 10px 30px rgba(0,0,0,0.6);backdrop-filter:none;color:var(--text)
 }
 .logo-wrap{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:18px}
@@ -67,7 +67,7 @@ body::before{
 .sidebar-foot{margin-top:18px;color:#4b3550;font-size:13px}
 
 /* Content */
-.content{flex:1}
+.content{flex:1;min-width:0}
 .content-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
 .content-header h1{margin:0;font-size:32px;color:var(--text);letter-spacing:-0.04em}
 .subtitle{margin:6px 0 0;color:var(--muted);font-size:15px}
@@ -115,6 +115,13 @@ body::before{
 .field-row--selects{grid-template-columns:repeat(3,minmax(0,1fr))}
 .field-row--numbers{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
 
+.field-row--criteria{
+  display:grid;
+  grid-template-columns:repeat(5, minmax(180px, 1fr));
+  gap:12px;
+  width:100%;
+}
+
 .range-field{
   display:flex;
   align-items:center;
@@ -123,9 +130,10 @@ body::before{
   border-radius:10px;
   border:1px solid rgba(255,255,255,0.06);
   background:rgba(255,255,255,0.02);
+  min-width:0;
 }
 
-.field-label{font-size:13px;font-weight:800;min-width:56px;color:var(--muted)}
+.field-label{font-size:12px;font-weight:800;min-width:92px;color:var(--muted)}
 .range-readout{min-width:20px;text-align:right;font-weight:900;color:var(--text)}
 
 .form-row input,
@@ -205,43 +213,50 @@ body::before{
 
 /* Ensure selects collapse nicely on small screens */
 @media (max-width:980px){
+  .app-shell{flex-direction:column;padding:12px}
+  .sidebar{width:100%;display:flex;justify-content:flex-start;align-items:center}
+  .cards{grid-template-columns:1fr}
   .form-row{grid-template-columns:1fr 1fr}
-  .field-row--selects,
-  .field-row--numbers{grid-template-columns:1fr 1fr}
+  .field-row--criteria{grid-template-columns:1fr 1fr}
   .form-actions{grid-column:1 / -1;justify-self:stretch}
 }
 
 @media (max-width:640px){
   .form-row{grid-template-columns:1fr}
-  .field-row--selects,
-  .field-row--numbers{grid-template-columns:1fr}
+  .field-row--criteria{grid-template-columns:1fr}
 }
 
-.list-card{max-height:520px;overflow:auto}
+.list-card{max-height:none;overflow:visible}
 .usecase-table{
   width:100%;
   min-width:100%;
-  table-layout:fixed;
+  table-layout:auto;
 }
 
 .usecase-table th:nth-child(1),
 .usecase-table td:nth-child(1){width:14%}
 .usecase-table th:nth-child(2),
-.usecase-table td:nth-child(2){width:22%}
+.usecase-table td:nth-child(2){width:20%}
 .usecase-table th:nth-child(3),
-.usecase-table td:nth-child(3){width:12%}
+.usecase-table td:nth-child(3){width:10%}
 .usecase-table th:nth-child(4),
-.usecase-table td:nth-child(4){width:14%}
+.usecase-table td:nth-child(4){width:12%}
 .usecase-table th:nth-child(5),
-.usecase-table td:nth-child(5){width:10%}
+.usecase-table td:nth-child(5){width:8%}
 .usecase-table th:nth-child(6),
 .usecase-table td:nth-child(6),
 .usecase-table th:nth-child(7),
-.usecase-table td:nth-child(7),
+.usecase-table td:nth-child(7){width:8%}
 .usecase-table th:nth-child(8),
-.usecase-table td:nth-child(8){width:8%}
+.usecase-table td:nth-child(8),
 .usecase-table th:nth-child(9),
-.usecase-table td:nth-child(9){width:12%}
+.usecase-table td:nth-child(9),
+.usecase-table th:nth-child(10),
+.usecase-table td:nth-child(10){width:8%}
+.usecase-table th:nth-child(11),
+.usecase-table td:nth-child(11){width:8%}
+.usecase-table th:nth-child(12),
+.usecase-table td:nth-child(12){width:10%}
 
 .empty{padding:30px;text-align:center;color:var(--muted);border-radius:16px;border:2px dashed rgba(255,255,255,0.04);background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))}
 
