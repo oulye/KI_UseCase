@@ -1,300 +1,411 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const titel = document.getElementById('titel');
-  const beschreibung = document.getElementById('beschreibung');
-  const nutzen = document.getElementById('nutzen');
-  const aufwand = document.getElementById('aufwand');
-  const zeitersparnis = document.getElementById('zeitersparnis');
-  const kostenersparnis = document.getElementById('kostenersparnis');
-  const technischeUmsetzbarkeit = document.getElementById('technische-umsetzbarkeit');
-  const branche = document.getElementById('branche');
-  const problemtyp = document.getElementById('problemtyp');
-  const risiko = document.getElementById('risiko');
-  const liste = document.getElementById('liste');
-  const saveButton = document.getElementById('save-button');
+// Hauptlogik: Navigation, Erfassungsformular mit Live-Bewertung, Liste mit Filtern, Detailansicht.
+document.addEventListener('DOMContentLoaded', async () => {
+  const { esc, api, CHF, CHF2, zahl, badge, bewertungBox, optionen } = window.KI;
+  const $ = (id) => document.getElementById(id);
+
+  const felder = {
+    titel: $('titel'), beschreibung: $('beschreibung'), tags: $('tags'),
+    branche: $('branche'), problemtyp: $('problemtyp'), risiko: $('risiko'),
+    fallvolumen: $('fallvolumen'), datenverfuegbarkeit: $('datenverfuegbarkeit'), datenstruktur: $('datenstruktur'),
+    regelkomplexitaet: $('regelkomplexitaet'), variabilitaet: $('variabilitaet'), fehlertoleranz: $('fehlertoleranz'),
+    erklaerbarkeit: $('erklaerbarkeit'), datenschutz: $('datenschutz'),
+    nutzen: $('nutzen'), aufwand: $('aufwand'), zeitersparnis: $('zeitersparnis'),
+    kostenersparnis: $('kostenersparnis'), technischeUmsetzbarkeit: $('technische-umsetzbarkeit')
+  };
+  const sliders = ['erklaerbarkeit', 'datenschutz', 'nutzen', 'aufwand', 'zeitersparnis', 'kostenersparnis', 'technischeUmsetzbarkeit'];
+  const DEFAULTS = { erklaerbarkeit: 3, datenschutz: 3, nutzen: 6, aufwand: 4, zeitersparnis: 50, kostenersparnis: 30, technischeUmsetzbarkeit: 5 };
 
   let editingId = null;
+  let previewTimer = null;
+  const vergleichIds = new Set();
+  window.KI.vergleichIds = vergleichIds;
 
-  const visibleColumns = new Set([
-    'titel',
-    'risiko',
-    'nutzen',
-    'aufwand',
-    'zeitersparnis',
-    'kostenersparnis',
-    'technischeUmsetzbarkeit',
-    'score',
-    'aktionen'
-  ]);
+  // ------------------------------------------------------------------ Meta & Dropdowns
+  const meta = await api('/api/meta');
+  window.KI.state.meta = meta;
 
-  const allToggleColumns = [
-    { key: 'beschreibung', label: 'Beschreibung' },
-    { key: 'problemtyp', label: 'Problemtyp' },
-    { key: 'branche', label: 'Branche' },
-    { key: 'risiko', label: 'Risiko' },
-    { key: 'zeitersparnis', label: 'Zeitersparnis' },
-    { key: 'kostenersparnis', label: 'Kostenersparnis' },
-    { key: 'technischeUmsetzbarkeit', label: 'Techn. Umsetzbarkeit' }
-  ];
+  const skalaOptionen = () => optionen(['1', '2', '3', '4', '5'], 'unbekannt');
+  felder.branche.innerHTML = optionen(meta.branchen, 'Branche wählen');
+  felder.problemtyp.innerHTML = optionen(meta.problemtypen, 'Problemtyp wählen');
+  felder.risiko.innerHTML = optionen(meta.risiken, 'Risiko', 'Mittel').replace('<option value="">Risiko</option>', '');
+  felder.datenstruktur.innerHTML = optionen(meta.datenstrukturen, 'Datenstruktur', 'strukturiert').replace('<option value="">Datenstruktur</option>', '');
+  felder.fehlertoleranz.innerHTML = optionen(meta.fehlertoleranzen, 'unbekannt');
+  ['datenverfuegbarkeit', 'regelkomplexitaet', 'variabilitaet'].forEach((k) => { felder[k].innerHTML = skalaOptionen(); });
 
-  const safeNumber = (value, fallback = 0) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
+  $('f-branche').innerHTML = optionen(meta.branchen, 'Alle Branchen');
+  $('f-problemtyp').innerHTML = optionen(meta.problemtypen, 'Alle Problemtypen');
+  $('f-risiko').innerHTML = optionen(meta.risiken, 'Alle Risiken');
+  $('f-empfehlung').innerHTML = [
+    '<option value="">Alle Empfehlungen</option>',
+    ...Object.entries(meta.empfehlungen).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`)
+  ].join('');
+
+  // ------------------------------------------------------------------ Lösungsansätze (dynamische Zeilen)
+  const loesungenBox = $('loesungen');
+
+  const loesungsZeile = (a = {}) => {
+    const row = document.createElement('div');
+    row.className = 'loesung-row';
+    row.innerHTML = `
+      <select class="l-typ" aria-label="Typ">${meta.loesungstypen.map((t) => `<option ${t === a.typ ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <input class="l-text" type="text" placeholder="Beschreibung" value="${esc(a.beschreibung || '')}">
+      <input class="l-einmal" type="number" min="0" step="any" placeholder="Einmalaufwand CHF" value="${esc(a.einmalaufwandCHF ?? '')}">
+      <input class="l-fall" type="number" min="0" step="any" placeholder="Kosten/Fall CHF" value="${esc(a.laufendeKostenProFall ?? '')}">
+      <input class="l-gen" type="number" min="0" max="100" step="any" placeholder="Genauigkeit %" value="${esc(a.genauigkeit ?? '')}">
+      <button type="button" class="btn small danger l-del" aria-label="Lösungsansatz entfernen">✕</button>`;
+    loesungenBox.appendChild(row);
   };
 
-  const syncRangeValue = (input) => {
-    if (!input) return;
-    const output = document.querySelector(`[data-for="${input.id}"]`);
-    if (output) output.textContent = input.value;
+  const leseLoesungen = () => [...loesungenBox.querySelectorAll('.loesung-row')].map((row) => ({
+    typ: row.querySelector('.l-typ').value,
+    beschreibung: row.querySelector('.l-text').value,
+    einmalaufwandCHF: row.querySelector('.l-einmal').value,
+    laufendeKostenProFall: row.querySelector('.l-fall').value,
+    genauigkeit: row.querySelector('.l-gen').value
+  }));
+
+  $('add-loesung').addEventListener('click', () => { loesungsZeile({ typ: 'Manuell' }); planeVorschau(); });
+  loesungenBox.addEventListener('click', (e) => {
+    if (e.target.closest('.l-del')) { e.target.closest('.loesung-row').remove(); planeVorschau(); }
+  });
+
+  // ------------------------------------------------------------------ Formular
+  const leseFormular = () => ({
+    titel: felder.titel.value.trim(),
+    beschreibung: felder.beschreibung.value.trim(),
+    tags: felder.tags.value,
+    branche: felder.branche.value,
+    problemtyp: felder.problemtyp.value,
+    risiko: felder.risiko.value || 'Mittel',
+    kriterien: {
+      fallvolumenProMonat: felder.fallvolumen.value,
+      datenverfuegbarkeit: felder.datenverfuegbarkeit.value,
+      datenstruktur: felder.datenstruktur.value,
+      regelkomplexitaet: felder.regelkomplexitaet.value,
+      variabilitaet: felder.variabilitaet.value,
+      fehlertoleranz: felder.fehlertoleranz.value || null,
+      erklaerbarkeit: felder.erklaerbarkeit.value,
+      datenschutz: felder.datenschutz.value
+    },
+    geschaeftswert: {
+      nutzen: felder.nutzen.value, aufwand: felder.aufwand.value,
+      zeitersparnis: felder.zeitersparnis.value, kostenersparnis: felder.kostenersparnis.value,
+      technischeUmsetzbarkeit: felder.technischeUmsetzbarkeit.value
+    },
+    loesungsansaetze: leseLoesungen()
+  });
+
+  const syncRange = (input) => {
+    const out = document.querySelector(`[data-for="${input.id}"]`);
+    if (out) out.textContent = input.value;
   };
 
-  const getRiskWeight = (risk) => {
-    const normalized = String(risk || '').trim().toLowerCase();
-    if (normalized === 'niedrig') return 3;
-    if (normalized === 'hoch') return 1;
-    return 2;
-  };
-
-  const calculateScore = ({ nutzenValue, aufwandValue, risikoValue, zeitersparnisValue, kostenersparnisValue, technischeUmsetzbarkeitValue }) => {
-    const basisScore = (safeNumber(nutzenValue) * 2) - safeNumber(aufwandValue);
-    const riskWeight = getRiskWeight(risikoValue);
-    const zeit = safeNumber(zeitersparnisValue);
-    const kosten = safeNumber(kostenersparnisValue);
-    const umsetzbarkeit = safeNumber(technischeUmsetzbarkeitValue);
-
-    return (basisScore * riskWeight) + (zeit * 0.5) + (kosten * 0.5) + (umsetzbarkeit * 3);
-  };
-
-  const readFormValues = () => {
-    const formValues = {
-      titel: (titel?.value || '').trim(),
-      beschreibung: (beschreibung?.value || '').trim(),
-      nutzen: safeNumber(nutzen?.value, 0),
-      aufwand: safeNumber(aufwand?.value, 0),
-      zeitersparnis: safeNumber(zeitersparnis?.value, 0),
-      kostenersparnis: safeNumber(kostenersparnis?.value, 0),
-      technischeUmsetzbarkeit: safeNumber(technischeUmsetzbarkeit?.value, 0),
-      branche: branche?.value || '',
-      problemtyp: problemtyp?.value || '',
-      risiko: risiko?.value || 'Mittel'
-    };
-
-    formValues.score = calculateScore({
-      nutzenValue: formValues.nutzen,
-      aufwandValue: formValues.aufwand,
-      risikoValue: formValues.risiko,
-      zeitersparnisValue: formValues.zeitersparnis,
-      kostenersparnisValue: formValues.kostenersparnis,
-      technischeUmsetzbarkeitValue: formValues.technischeUmsetzbarkeit
-    });
-
-    return formValues;
+  const fuelleFormular = (uc) => {
+    const k = uc.kriterien || {};
+    const g = uc.geschaeftswert || {};
+    felder.titel.value = uc.titel || '';
+    felder.beschreibung.value = uc.beschreibung || '';
+    felder.tags.value = (uc.tags || []).join(', ');
+    felder.branche.value = uc.branche || '';
+    felder.problemtyp.value = uc.problemtyp || '';
+    felder.risiko.value = uc.risiko || 'Mittel';
+    felder.fallvolumen.value = k.fallvolumenProMonat ?? '';
+    felder.datenverfuegbarkeit.value = k.datenverfuegbarkeit ?? '';
+    felder.datenstruktur.value = k.datenstruktur || 'strukturiert';
+    felder.regelkomplexitaet.value = k.regelkomplexitaet ?? '';
+    felder.variabilitaet.value = k.variabilitaet ?? '';
+    felder.fehlertoleranz.value = k.fehlertoleranz || '';
+    felder.erklaerbarkeit.value = k.erklaerbarkeit ?? DEFAULTS.erklaerbarkeit;
+    felder.datenschutz.value = k.datenschutz ?? DEFAULTS.datenschutz;
+    felder.nutzen.value = g.nutzen ?? DEFAULTS.nutzen;
+    felder.aufwand.value = g.aufwand ?? DEFAULTS.aufwand;
+    felder.zeitersparnis.value = g.zeitersparnis ?? DEFAULTS.zeitersparnis;
+    felder.kostenersparnis.value = g.kostenersparnis ?? DEFAULTS.kostenersparnis;
+    felder.technischeUmsetzbarkeit.value = g.technischeUmsetzbarkeit ?? DEFAULTS.technischeUmsetzbarkeit;
+    loesungenBox.innerHTML = '';
+    (uc.loesungsansaetze || []).forEach(loesungsZeile);
+    sliders.forEach((key) => syncRange(felder[key]));
   };
 
   const resetForm = () => {
     editingId = null;
-    if (saveButton) saveButton.textContent = 'Speichern';
-
-    [titel, beschreibung, branche, problemtyp].forEach((input) => {
-      if (input) input.value = '';
-    });
-
-    if (risiko) risiko.value = 'Mittel';
-    if (nutzen) nutzen.value = 6;
-    if (aufwand) aufwand.value = 4;
-    if (zeitersparnis) zeitersparnis.value = 50;
-    if (kostenersparnis) kostenersparnis.value = 30;
-    if (technischeUmsetzbarkeit) technischeUmsetzbarkeit.value = 5;
-
-    [nutzen, aufwand, zeitersparnis, kostenersparnis, technischeUmsetzbarkeit].forEach((input) => {
-      if (input) syncRangeValue(input);
-    });
+    $('save-button').textContent = 'Speichern';
+    $('form-title').textContent = 'Neuen Use Case erfassen';
+    fuelleFormular({ risiko: 'Mittel', kriterien: { datenstruktur: 'strukturiert' }, loesungsansaetze: [{ typ: 'Manuell' }, { typ: 'Regelbasiert' }, { typ: 'KI' }] });
+    planeVorschau();
   };
 
-  const fillForm = (useCase) => {
-    if (!useCase) return;
-
-    if (titel) titel.value = useCase.titel || '';
-    if (beschreibung) beschreibung.value = useCase.beschreibung || '';
-    if (nutzen) nutzen.value = safeNumber(useCase.nutzen, 6);
-    if (aufwand) aufwand.value = safeNumber(useCase.aufwand, 4);
-    if (zeitersparnis) zeitersparnis.value = safeNumber(useCase.zeitersparnis, 50);
-    if (kostenersparnis) kostenersparnis.value = safeNumber(useCase.kostenersparnis, 30);
-    if (technischeUmsetzbarkeit) technischeUmsetzbarkeit.value = safeNumber(useCase.technischeUmsetzbarkeit, 5);
-    if (branche) branche.value = useCase.branche || '';
-    if (problemtyp) problemtyp.value = useCase.problemtyp || '';
-    if (risiko) risiko.value = useCase.risiko || 'Mittel';
-
-    [nutzen, aufwand, zeitersparnis, kostenersparnis, technischeUmsetzbarkeit].forEach((input) => {
-      if (input) syncRangeValue(input);
-    });
-
-    editingId = useCase._id;
-    if (saveButton) saveButton.textContent = 'Aktualisieren';
-  };
-
-  const updateColumnVisibility = () => {
-    document.querySelectorAll('[data-column]').forEach((element) => {
-      const column = element.dataset.column;
-      const isVisible = visibleColumns.has(column);
-
-      if (element.classList.contains('column-toggle')) {
-        element.classList.toggle('is-off', !isVisible);
-        element.textContent = `${isVisible ? 'Ausblenden' : 'Einblenden'} ${element.dataset.label}`;
-        return;
+  function planeVorschau() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(async () => {
+      try {
+        $('vorschau').innerHTML = `<div class="vorschau-titel">Live-Bewertung (regelbasiert)</div>${bewertungBox(await api('/api/bewertung/vorschau', { method: 'POST', body: leseFormular() }))}`;
+      } catch (err) {
+        $('vorschau').innerHTML = `<div class="fehlend">${esc(err.message)}</div>`;
       }
+    }, 250);
+  }
 
-      element.classList.toggle('is-hidden', !isVisible);
-    });
+  $('usecase-form').addEventListener('input', (e) => {
+    if (e.target.type === 'range') syncRange(e.target);
+    planeVorschau();
+  });
+  $('usecase-form').addEventListener('change', planeVorschau);
+  $('reset-button').addEventListener('click', resetForm);
+
+  $('usecase-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = leseFormular();
+    if (!payload.titel) { alert('Bitte einen Titel eingeben.'); return; }
+    try {
+      await api(editingId ? `/api/usecases/${editingId}` : '/api/usecases', { method: editingId ? 'PUT' : 'POST', body: payload });
+      resetForm();
+      await ladeListe();
+    } catch (err) {
+      alert('Speichern fehlgeschlagen: ' + err.message);
+    }
+  });
+
+  // ------------------------------------------------------------------ Liste
+  const sichtbar = new Set(['titel', 'risiko', 'fallvolumen', 'nutzwert', 'empfehlung', 'aktionen']);
+  const umschaltbar = [
+    ['beschreibung', 'Beschreibung'], ['branche', 'Branche'], ['problemtyp', 'Problemtyp'],
+    ['risiko', 'Risiko'], ['fallvolumen', 'Fallvolumen'], ['tags', 'Tags']
+  ];
+
+  const filterQuery = () => {
+    const params = new URLSearchParams();
+    [['q', 'f-q'], ['branche', 'f-branche'], ['problemtyp', 'f-problemtyp'], ['risiko', 'f-risiko'], ['empfehlung', 'f-empfehlung']]
+      .forEach(([key, id]) => { if ($(id).value.trim()) params.set(key, $(id).value.trim()); });
+    return params.toString();
   };
 
-  const createColumnToggleButtons = () => `
-    <div class="column-toggle-bar">
-      ${allToggleColumns.map((column) => `
-        <button
-          type="button"
-          class="btn small column-toggle ${visibleColumns.has(column.key) ? '' : 'is-off'}"
-          data-column="${column.key}"
-          data-label="${column.label}"
-        >${visibleColumns.has(column.key) ? 'Ausblenden' : 'Einblenden'} ${column.label}</button>
-      `).join('')}
-    </div>
-  `;
-
-  const loadUseCases = async () => {
-    const response = await fetch('/api/usecases');
-    const data = await response.json();
-
-    data.sort((a, b) => (b.score || 0) - (a.score || 0));
-
+  async function ladeListe() {
+    const liste = $('liste');
+    let data;
+    try {
+      data = await api('/api/usecases?' + filterQuery());
+    } catch (err) {
+      liste.innerHTML = `<div class="empty">Fehler beim Laden: ${esc(err.message)}</div>`;
+      return;
+    }
+    $('list-count').textContent = `(${data.length})`;
     if (!data.length) {
-      liste.innerHTML = "<div class='empty'>Keine Use Cases vorhanden — füge einen neuen Use Case hinzu.</div>";
+      liste.innerHTML = "<div class='empty'>Keine Use Cases gefunden — Filter anpassen oder einen neuen Use Case hinzufügen.</div>";
       return;
     }
 
     liste.innerHTML = `
-      ${createColumnToggleButtons()}
+      <div class="column-toggle-bar">
+        ${umschaltbar.map(([key, label]) => `<button type="button" class="btn small column-toggle ${sichtbar.has(key) ? '' : 'is-off'}" data-column="${key}">${sichtbar.has(key) ? 'Ausblenden' : 'Einblenden'} ${label}</button>`).join('')}
+        <button type="button" class="btn small secondary" id="goto-vergleich">Auswahl vergleichen (<span id="vergleich-anzahl">${vergleichIds.size}</span>)</button>
+      </div>
+      <div class="table-wrap">
       <table class="usecase-table">
-        <thead>
-          <tr>
-            <th class="col-titel" data-column="titel">Titel</th>
-            <th class="col-beschreibung" data-column="beschreibung">Beschreibung</th>
-            <th class="col-branche" data-column="branche">Branche</th>
-            <th class="col-problemtyp" data-column="problemtyp">Problemtyp</th>
-            <th class="col-risiko" data-column="risiko">Risiko</th>
-            <th class="col-nutzen" data-column="nutzen">Nutzen</th>
-            <th class="col-aufwand" data-column="aufwand">Aufwand</th>
-            <th class="col-zeitersparnis" data-column="zeitersparnis">Zeitersparnis</th>
-            <th class="col-kostenersparnis" data-column="kostenersparnis">Kostenersparnis</th>
-            <th class="col-technischeumsetzbarkeit" data-column="technischeUmsetzbarkeit">Techn. Umsetzbarkeit</th>
-            <th class="col-score" data-column="score">Score</th>
-            <th class="col-aktionen" data-column="aktionen">Aktionen</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th class="col-check"></th>
+          <th data-column="titel">Titel</th>
+          <th data-column="beschreibung">Beschreibung</th>
+          <th data-column="branche">Branche</th>
+          <th data-column="problemtyp">Problemtyp</th>
+          <th data-column="risiko">Risiko</th>
+          <th data-column="fallvolumen">Fälle / Monat</th>
+          <th data-column="tags">Tags</th>
+          <th data-column="nutzwert">KI-Nutzwert</th>
+          <th data-column="empfehlung">Empfehlung</th>
+          <th data-column="aktionen">Aktionen</th>
+        </tr></thead>
         <tbody>
-          ${data.map((x) => {
-            const titelText = (x.titel || '').replace(/"/g, '&quot;');
-            return `
-              <tr>
-                <td class="col-titel" data-column="titel"><strong>${titelText}</strong></td>
-                <td class="col-beschreibung" data-column="beschreibung">${x.beschreibung || '-'}</td>
-                <td class="col-branche" data-column="branche">${x.branche || '-'}</td>
-                <td class="col-problemtyp" data-column="problemtyp">${x.problemtyp || '-'}</td>
-                <td class="col-risiko" data-column="risiko">${x.risiko || '-'}</td>
-                <td class="col-nutzen" data-column="nutzen">${x.nutzen ?? '-'}</td>
-                <td class="col-aufwand" data-column="aufwand">${x.aufwand ?? '-'}</td>
-                <td class="col-zeitersparnis" data-column="zeitersparnis">${safeNumber(x.zeitersparnis, 0)}%</td>
-                <td class="col-kostenersparnis" data-column="kostenersparnis">${safeNumber(x.kostenersparnis, 0)}%</td>
-                <td class="col-technischeumsetzbarkeit" data-column="technischeUmsetzbarkeit">${safeNumber(x.technischeUmsetzbarkeit, 0)}</td>
-                <td class="col-score" data-column="score"><span class="score-badge">${x.score ?? 0}</span></td>
-                <td class="col-aktionen" data-column="aktionen">
-                  <div class="action-row compact">
-                    <button type="button" class="btn small secondary" onclick="bearbeiten('${x._id}')" aria-label="Bearbeiten ${titelText}">✏️</button>
-                    <button type="button" class="btn small danger" onclick="loeschen('${x._id}')" aria-label="Löschen ${titelText}">🗑️</button>
-                  </div>
-                </td>
-              </tr>
-            `;
-          }).join('')}
+          ${data.map((x) => `
+            <tr>
+              <td class="col-check"><input type="checkbox" class="vergleich-check" data-id="${esc(x._id)}" ${vergleichIds.has(x._id) ? 'checked' : ''} aria-label="Zum Vergleich wählen"></td>
+              <td data-column="titel"><a href="#" class="titel-link" data-detail="${esc(x._id)}"><strong>${esc(x.titel)}</strong></a></td>
+              <td data-column="beschreibung">${esc(x.beschreibung) || '-'}</td>
+              <td data-column="branche">${esc(x.branche) || '-'}</td>
+              <td data-column="problemtyp">${esc(x.problemtyp) || '-'}</td>
+              <td data-column="risiko"><span class="risiko risiko--${esc((x.risiko || '').toLowerCase())}">${esc(x.risiko) || '-'}</span></td>
+              <td data-column="fallvolumen">${zahl(x.kriterien?.fallvolumenProMonat)}</td>
+              <td data-column="tags">${(x.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join(' ')}</td>
+              <td data-column="nutzwert"><span class="score-badge">${esc(x.bewertung?.nutzwert ?? '–')}</span></td>
+              <td data-column="empfehlung">${badge(x.bewertung?.empfehlung)}</td>
+              <td data-column="aktionen">
+                <div class="action-row compact">
+                  <button type="button" class="btn small secondary" data-detail="${esc(x._id)}" aria-label="Details ${esc(x.titel)}">🔍</button>
+                  <button type="button" class="btn small secondary" data-edit="${esc(x._id)}" aria-label="Bearbeiten ${esc(x.titel)}">✏️</button>
+                  <button type="button" class="btn small danger" data-delete="${esc(x._id)}" data-name="${esc(x.titel)}" aria-label="Löschen ${esc(x.titel)}">🗑️</button>
+                </div>
+              </td>
+            </tr>`).join('')}
         </tbody>
-      </table>
-    `;
-
-    updateColumnVisibility();
-  };
-
-  async function speichern() {
-    const payload = readFormValues();
-
-    if (!payload.titel) {
-      alert('Bitte einen Titel eingeben.');
-      return;
-    }
-
-    const response = await fetch(editingId ? '/api/usecases/' + editingId : '/api/usecases', {
-      method: editingId ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      alert('Speichern fehlgeschlagen: ' + err);
-      return;
-    }
-
-    resetForm();
-    await loadUseCases();
+      </table></div>`;
+    spaltenAnwenden();
   }
+
+  function spaltenAnwenden() {
+    document.querySelectorAll('#liste [data-column]').forEach((el) => {
+      if (el.classList.contains('column-toggle')) return;
+      el.classList.toggle('is-hidden', !sichtbar.has(el.dataset.column));
+    });
+  }
+
+  let filterTimer;
+  $('filter-bar').addEventListener('input', () => { clearTimeout(filterTimer); filterTimer = setTimeout(ladeListe, 250); });
+  $('filter-bar').addEventListener('change', ladeListe);
+
+  $('liste').addEventListener('click', async (e) => {
+    const toggle = e.target.closest('.column-toggle');
+    if (toggle) {
+      const key = toggle.dataset.column;
+      if (sichtbar.has(key)) sichtbar.delete(key); else sichtbar.add(key);
+      toggle.classList.toggle('is-off', !sichtbar.has(key));
+      toggle.textContent = `${sichtbar.has(key) ? 'Ausblenden' : 'Einblenden'} ${umschaltbar.find(([k]) => k === key)[1]}`;
+      spaltenAnwenden();
+      return;
+    }
+    const detail = e.target.closest('[data-detail]');
+    if (detail) { e.preventDefault(); zeigeDetail(detail.dataset.detail); return; }
+    const edit = e.target.closest('[data-edit]');
+    if (edit) { bearbeiten(edit.dataset.edit); return; }
+    const del = e.target.closest('[data-delete]');
+    if (del) { loeschen(del.dataset.delete, del.dataset.name); return; }
+    if (e.target.closest('#goto-vergleich')) navigiere('vergleich');
+  });
+
+  $('liste').addEventListener('change', (e) => {
+    if (!e.target.classList.contains('vergleich-check')) return;
+    const id = e.target.dataset.id;
+    if (e.target.checked) {
+      if (vergleichIds.size >= 4) { e.target.checked = false; alert('Maximal 4 Use Cases vergleichbar.'); return; }
+      vergleichIds.add(id);
+    } else {
+      vergleichIds.delete(id);
+    }
+    const zaehler = $('vergleich-anzahl');
+    if (zaehler) zaehler.textContent = vergleichIds.size;
+  });
 
   async function bearbeiten(id) {
-    const response = await fetch('/api/usecases/' + id);
-    const useCase = await response.json();
-    fillForm(useCase);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    try {
+      const uc = await api('/api/usecases/' + id);
+      fuelleFormular(uc);
+      editingId = uc._id;
+      $('save-button').textContent = 'Aktualisieren';
+      $('form-title').textContent = 'Use Case bearbeiten';
+      planeVorschau();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) { alert(err.message); }
   }
 
-  async function loeschen(id) {
-    const response = await fetch('/api/usecases/' + id);
-    const useCase = await response.json();
-    const name = useCase?.titel || 'dieser Use-Case';
-    const isConfirmed = window.confirm(`Sind Sie sich wirklich ganz sicher, tun Sie noch einmal überlegen, dass Sie den Use-Case "${name}" löschen möchten?`);
-
-    if (!isConfirmed) return;
-
-    await fetch('/api/usecases/' + id, { method: 'DELETE' });
-
-    if (editingId === id) {
-      resetForm();
-    }
-
-    await loadUseCases();
+  async function loeschen(id, name) {
+    if (!window.confirm(`Use Case "${name}" wirklich löschen?`)) return;
+    try {
+      await api('/api/usecases/' + id, { method: 'DELETE' });
+      vergleichIds.delete(id);
+      if (editingId === id) resetForm();
+      await ladeListe();
+    } catch (err) { alert(err.message); }
   }
 
-  document.addEventListener('click', (event) => {
-    const toggle = event.target.closest('.column-toggle');
-    if (!toggle) return;
+  // ------------------------------------------------------------------ Detail-Dialog
+  const dialog = $('detail-dialog');
 
-    const { column } = toggle.dataset;
-    if (visibleColumns.has(column)) {
-      visibleColumns.delete(column);
-    } else {
-      visibleColumns.add(column);
+  async function zeigeDetail(id) {
+    $('detail-inhalt').innerHTML = '<div class="empty">Lade …</div>';
+    if (!dialog.open) dialog.showModal();
+    try {
+      const [uc, aehnlich] = await Promise.all([api('/api/usecases/' + id), api(`/api/usecases/${id}/aehnlich`)]);
+      const k = uc.kriterien || {};
+      const kosten = uc.bewertung?.kosten || [];
+      const guenstigster = uc.bewertung?.guenstigsterAnsatz;
+      $('detail-inhalt').innerHTML = `
+        <div class="detail-kopf">
+          <div><h2>${esc(uc.titel)}</h2><p class="meta">${esc(uc.branche) || 'Branche unbekannt'} · ${esc(uc.problemtyp) || 'Problemtyp unbekannt'} · Risiko: ${esc(uc.risiko)}</p></div>
+          <button type="button" class="btn small secondary" data-close>Schliessen</button>
+        </div>
+        <p>${esc(uc.beschreibung) || '<em>Keine Beschreibung</em>'}</p>
+        <div>${(uc.tags || []).map((t) => `<span class="chip">${esc(t)}</span>`).join(' ')}</div>
+
+        <h3>Bewertung</h3>
+        ${bewertungBox(uc.bewertung)}
+        <div class="llm-box" id="llm-box">
+          ${uc.bewertung?.llmBegruendung ? llmHtml(uc.bewertung.llmBegruendung) : ''}
+          <button type="button" class="btn small secondary" data-llm="${esc(uc._id)}">Textuelle Begründung erzeugen${meta.llm ? ` (${esc(meta.llm)})` : ''}</button>
+        </div>
+
+        <h3>Problemmerkmale</h3>
+        <table class="mini-table"><tbody>
+          <tr><th>Fallvolumen / Monat</th><td>${zahl(k.fallvolumenProMonat)}</td><th>Datenverfügbarkeit</th><td>${esc(k.datenverfuegbarkeit ?? '–')} / 5</td></tr>
+          <tr><th>Datenstruktur</th><td>${esc(k.datenstruktur)}</td><th>Regelkomplexität</th><td>${esc(k.regelkomplexitaet ?? '–')} / 5</td></tr>
+          <tr><th>Variabilität</th><td>${esc(k.variabilitaet ?? '–')} / 5</td><th>Fehlertoleranz</th><td>${esc(k.fehlertoleranz ?? '–')}</td></tr>
+          <tr><th>Erklärbarkeit (Anforderung)</th><td>${esc(k.erklaerbarkeit)} / 5</td><th>Datenschutz (Sensibilität)</th><td>${esc(k.datenschutz)} / 5</td></tr>
+        </tbody></table>
+
+        <h3>Lösungsansätze</h3>
+        ${(uc.loesungsansaetze || []).length ? `
+        <table class="mini-table"><thead><tr><th>Ansatz</th><th>Beschreibung</th><th>Einmalaufwand</th><th>Kosten / Fall</th><th>Genauigkeit</th><th>Kosten 12 Mt.</th><th>Break-even</th></tr></thead><tbody>
+          ${uc.loesungsansaetze.map((a) => {
+            const t = kosten.find((c) => c.typ === a.typ) || {};
+            return `<tr class="${a.typ === guenstigster ? 'best' : ''}"><td><b>${esc(a.typ)}</b></td><td>${esc(a.beschreibung)}</td><td>${CHF(a.einmalaufwandCHF)}</td><td>${CHF2(a.laufendeKostenProFall)}</td><td>${a.genauigkeit != null ? esc(a.genauigkeit) + ' %' : '–'}</td><td>${CHF(t.tco12Monate)}</td><td>${t.breakEvenMonate != null ? zahl(t.breakEvenMonate, 1) + ' Mt.' : '–'}</td></tr>`;
+          }).join('')}
+        </tbody></table>
+        ${guenstigster ? `<p class="meta">Günstigster Ansatz über 12 Monate: <b>${esc(guenstigster)}</b> (hervorgehoben). Das ist nicht automatisch die Empfehlung – Genauigkeit, Risiko und Erklärbarkeit zählen ebenfalls.</p>` : ''}`
+        : '<div class="empty">Keine Lösungsansätze erfasst.</div>'}
+
+        <h3>Ähnliche Use Cases</h3>
+        ${aehnlich.length ? `<div class="aehnlich">${aehnlich.map((a) => `
+          <a href="#" class="aehnlich-item" data-detail="${esc(a._id)}">
+            <span class="score-badge">${esc(a.aehnlichkeit)}%</span>
+            <span><b>${esc(a.titel)}</b><br><span class="meta">${esc(a.branche)} · ${esc(a.problemtyp)}${a.gemeinsameTags?.length ? ' · gemeinsame Tags: ' + a.gemeinsameTags.map(esc).join(', ') : ''}</span></span>
+            ${badge(a.empfehlung)}
+          </a>`).join('')}</div>` : '<div class="empty">Keine ähnlichen Use Cases gefunden.</div>'}`;
+    } catch (err) {
+      $('detail-inhalt').innerHTML = `<div class="empty">${esc(err.message)}</div><button type="button" class="btn small secondary" data-close>Schliessen</button>`;
     }
+  }
 
-    updateColumnVisibility();
+  const llmHtml = (l) => `<div class="llm-text"><b>Begründung (${esc(l.quelle)}):</b> ${esc(l.text)}</div>`;
+
+  dialog.addEventListener('click', async (e) => {
+    if (e.target === dialog || e.target.closest('[data-close]')) { dialog.close(); return; }
+    const detail = e.target.closest('[data-detail]');
+    if (detail) { e.preventDefault(); zeigeDetail(detail.dataset.detail); return; }
+    const llm = e.target.closest('[data-llm]');
+    if (llm) {
+      llm.disabled = true;
+      llm.textContent = 'Erzeuge …';
+      try {
+        const r = await api(`/api/usecases/${llm.dataset.llm}/begruendung`, { method: 'POST' });
+        $('llm-box').innerHTML = llmHtml(r);
+      } catch (err) { llm.textContent = err.message; }
+    }
   });
 
-  [nutzen, aufwand, zeitersparnis, kostenersparnis, technischeUmsetzbarkeit].forEach((input) => {
-    if (!input) return;
-    input.addEventListener('input', () => syncRangeValue(input));
-    syncRangeValue(input);
+  // ------------------------------------------------------------------ Navigation
+  const TITEL = {
+    usecases: ['Use Cases', 'Wann bringt KI mehr Nutzen als eine klassische, regelbasierte oder manuelle Lösung?'],
+    auswertungen: ['Auswertungen', 'MongoDB-Aggregationen über alle bewerteten Use Cases.'],
+    vergleich: ['Vergleich', 'Use Cases nebeneinander: Kriterien, Kosten und Empfehlung.'],
+    kriterien: ['Kriterien & Methodik', 'Wie die regelbasierte Bewertung zu ihrer Empfehlung kommt.']
+  };
+
+  function navigiere(view) {
+    document.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== `view-${view}`; });
+    document.querySelectorAll('.nav-link').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    $('view-title').textContent = TITEL[view][0];
+    $('view-subtitle').textContent = TITEL[view][1];
+    if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
+    if (view === 'usecases') ladeListe();
+    else window.KI.views?.[view]?.laden?.();
+  }
+  window.KI.navigiere = navigiere;
+  $('nav').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-view]');
+    if (btn) navigiere(btn.dataset.view);
   });
 
-  window.speichern = speichern;
-  window.loeschen = loeschen;
-  window.bearbeiten = bearbeiten;
-  window.laden = loadUseCases;
-
+  sliders.forEach((key) => syncRange(felder[key]));
   resetForm();
-  loadUseCases();
+  const startAnsicht = location.hash.slice(1);
+  if (TITEL[startAnsicht] && startAnsicht !== 'usecases') navigiere(startAnsicht);
+  else ladeListe();
 });

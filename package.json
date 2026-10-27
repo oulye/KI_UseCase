@@ -1,9 +1,16 @@
 {
   "name": "ki-usecase-manager",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "KI UseCase Evaluator: erfassen, bewerten und vergleichen von KI-Anwendungsfällen (Node.js, Express, MongoDB)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed": "node scripts/seed.js",
+    "seed:reset": "node scripts/seed.js --reset",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -3,8 +3,9 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width,initial-scale=1">
-	<title>KI Use Cases — Neon Lab</title>
+	<title>KI UseCase Evaluator</title>
 	<link rel="stylesheet" href="styles.css">
+	<link rel="stylesheet" href="ui.css">
 </head>
 <body>
 	<div class="app-shell">
@@ -12,53 +13,66 @@
 			<div class="logo-wrap">
 				<div class="logo-sub">KI Use Cases</div>
 			</div>
+			<nav class="nav" id="nav">
+				<button type="button" class="nav-link active" data-view="usecases">Use Cases</button>
+				<button type="button" class="nav-link" data-view="auswertungen">Auswertungen</button>
+				<button type="button" class="nav-link" data-view="vergleich">Vergleich</button>
+				<button type="button" class="nav-link" data-view="kriterien">Kriterien</button>
+			</nav>
 		</aside>
 
 		<main class="content">
 			<header class="content-header">
 				<div>
-					<h1>Use Cases</h1>
-					<p class="subtitle">Sammle, priorisiere und strukturiere deine KI-Ideen.</p>
-				</div>
-				<div class="header-actions">
-					<!-- Dark mode removed: intentionally left blank for strong, fixed color styling -->
+					<h1 id="view-title">Use Cases</h1>
+					<p class="subtitle" id="view-subtitle">Wann bringt KI mehr Nutzen als eine klassische, regelbasierte oder manuelle Lösung?</p>
 				</div>
 			</header>
 
-			<section class="cards">
+			<!-- ============ Use Cases ============ -->
+			<section class="view" id="view-usecases">
 				<section class="card wide">
-					<div class="card-title">Neuen Use Case</div>
-					<form onsubmit="event.preventDefault();speichern()" class="form-row">
-						<input id="titel" type="text" placeholder="Titel" required>
+					<div class="card-title" id="form-title">Neuen Use Case erfassen</div>
+					<form id="usecase-form" class="form-row" autocomplete="off">
+						<input id="titel" type="text" placeholder="Titel" required maxlength="200">
 						<input id="beschreibung" type="text" placeholder="Kurzbeschreibung">
+						<input id="tags" type="text" placeholder="Tags, kommagetrennt (z. B. text, nlp, support)">
 
 						<div class="field-row field-row--selects">
-							<select id="branche" aria-label="Branche">
-								<option value="">Branche wählen</option>
-								<option>Gesundheitswesen</option>
-								<option>Finanzen</option>
-								<option>Einzelhandel</option>
-								<option>Produktion</option>
-								<option>Bildung</option>
-								<option>Sonstiges</option>
-							</select>
-							<select id="problemtyp" aria-label="Problemtyp">
-								<option value="">Problemtyp wählen</option>
-								<option>Klassifizierung</option>
-								<option>Vorhersage</option>
-								<option>Automatisierung</option>
-								<option>Betrugserkennung</option>
-								<option>Empfehlung</option>
-								<option>Sonstiges</option>
-							</select>
-							<select id="risiko" aria-label="Risiko">
-								<option value="Mittel">Risiko</option>
-								<option>Niedrig</option>
-								<option selected>Mittel</option>
-								<option>Hoch</option>
-							</select>
+							<select id="branche" aria-label="Branche"></select>
+							<select id="problemtyp" aria-label="Problemtyp"></select>
+							<select id="risiko" aria-label="Risiko"></select>
 						</div>
 
+						<div class="section-label">Problemmerkmale <span class="hint">„unbekannt“ lassen, wenn noch nicht geklärt → Empfehlung „Entscheidung noch nicht möglich“</span></div>
+						<div class="field-row field-row--fields">
+							<label class="select-field"><span class="field-label">Fallvolumen / Monat</span>
+								<input id="fallvolumen" type="number" min="0" step="1" placeholder="unbekannt"></label>
+							<label class="select-field"><span class="field-label">Datenverfügbarkeit</span>
+								<select id="datenverfuegbarkeit" data-skala="Datenverfügbarkeit"></select></label>
+							<label class="select-field"><span class="field-label">Datenstruktur</span>
+								<select id="datenstruktur"></select></label>
+							<label class="select-field"><span class="field-label">Regelkomplexität</span>
+								<select id="regelkomplexitaet" data-skala="Regelkomplexität"></select></label>
+							<label class="select-field"><span class="field-label">Variabilität der Eingaben</span>
+								<select id="variabilitaet" data-skala="Variabilität"></select></label>
+							<label class="select-field"><span class="field-label">Fehlertoleranz</span>
+								<select id="fehlertoleranz"></select></label>
+						</div>
+						<div class="field-row field-row--criteria field-row--two">
+							<label class="range-field">
+								<span class="field-label">Anforderung Erklärbarkeit</span>
+								<input id="erklaerbarkeit" type="range" min="1" max="5" step="1" value="3">
+								<span class="range-readout" data-for="erklaerbarkeit">3</span>
+							</label>
+							<label class="range-field">
+								<span class="field-label">Sensibilität der Daten</span>
+								<input id="datenschutz" type="range" min="1" max="5" step="1" value="3">
+								<span class="range-readout" data-for="datenschutz">3</span>
+							</label>
+						</div>
+
+						<div class="section-label">Geschäftswert (Einschätzung des Teams)</div>
 						<div class="field-row field-row--criteria">
 							<label class="range-field">
 								<span class="field-label">Nutzen</span>
@@ -87,23 +101,59 @@
 							</label>
 						</div>
 
+						<div class="section-label">Lösungsansätze <span class="hint">Kosten in CHF; Break-even und 12-Monats-Kosten werden daraus berechnet</span></div>
+						<div id="loesungen" class="loesungen"></div>
+						<div class="form-wide"><button type="button" class="btn small secondary" id="add-loesung">+ Lösungsansatz</button></div>
+
+						<div class="vorschau" id="vorschau" aria-live="polite"></div>
+
 						<div class="form-actions">
-							<button type="button" class="btn clear" onclick="['titel','beschreibung','branche','problemtyp','risiko'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const n=document.getElementById('nutzen'); const a=document.getElementById('aufwand'); if(n){n.value=6; n.dispatchEvent(new Event('input'));} if(a){a.value=4; a.dispatchEvent(new Event('input'));}; const r=document.getElementById('risiko'); if(r){r.value='Mittel';}">Zurücksetzen</button>
+							<button type="button" class="btn clear" id="reset-button">Zurücksetzen</button>
 							<button id="save-button" type="submit" class="btn primary">Speichern</button>
 						</div>
 					</form>
 				</section>
 
 				<section class="card list-card">
-					<div class="card-title">Gespeicherte Use Cases</div>
-					<div id="liste">
-						<div class="empty">Keine Use Cases vorhanden — füge einen neuen Use Case hinzu.</div>
+					<div class="card-title">Gespeicherte Use Cases <span class="count" id="list-count"></span></div>
+					<div class="filter-bar" id="filter-bar">
+						<input id="f-q" type="search" placeholder="Suchen (Titel, Beschreibung, Tags)">
+						<select id="f-branche" aria-label="Filter Branche"></select>
+						<select id="f-problemtyp" aria-label="Filter Problemtyp"></select>
+						<select id="f-risiko" aria-label="Filter Risiko"></select>
+						<select id="f-empfehlung" aria-label="Filter Empfehlung"></select>
 					</div>
+					<div id="liste"><div class="empty">Lade …</div></div>
 				</section>
+			</section>
+
+			<!-- ============ Auswertungen ============ -->
+			<section class="view" id="view-auswertungen" hidden>
+				<div id="auswertungen"></div>
+			</section>
+
+			<!-- ============ Vergleich ============ -->
+			<section class="view" id="view-vergleich" hidden>
+				<section class="card wide">
+					<div class="card-title">Use Cases vergleichen <span class="hint">2 bis 4 Fälle auswählen (oder in der Liste per Checkbox markieren)</span></div>
+					<div id="vergleich-auswahl" class="vergleich-auswahl"></div>
+					<div id="vergleich-ergebnis"></div>
+				</section>
+			</section>
+
+			<!-- ============ Kriterien ============ -->
+			<section class="view" id="view-kriterien" hidden>
+				<div id="kriterien"></div>
 			</section>
 		</main>
 	</div>
 
+	<dialog id="detail-dialog" class="detail-dialog">
+		<div id="detail-inhalt"></div>
+	</dialog>
+
+	<script src="util.js"></script>
+	<script src="views.js"></script>
 	<script src="app.js"></script>
 </body>
 </html>
